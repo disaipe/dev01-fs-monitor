@@ -17,6 +17,7 @@ type Config struct {
 
 type Folder struct {
 	config *Config
+	worker *Worker
 }
 
 type GetFolderSizeRequest struct {
@@ -56,29 +57,32 @@ func (folder *Folder) getSize(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	go func() {
-		id := body.Id
-		path := body.Path
-		timeStart := time.Now()
-		size := getFolderSize.LooseParallel(path)
-		duration := time.Now().Sub(timeStart).Seconds()
+	folder.worker.Queue.AddJob(Job{
+		Name: body.Path,
+		Action: func() error {
+			id := body.Id
+			path := body.Path
+			timeStart := time.Now()
+			size := getFolderSize.LooseParallel(path)
+			duration := time.Now().Sub(timeStart).Seconds()
 
-		var response GetFolderSizeResponseRequest
-		response.Id = id
-		response.Size = size
-		response.Duration = duration
+			log.Printf("Result: %v (id: %v) - %v (%.2f)", path, id, size, duration)
 
-		v, _ := json.Marshal(response)
+			var response GetFolderSizeResponseRequest
+			response.Id = id
+			response.Size = size
+			response.Duration = duration
 
-		appRequest, _ := http.NewRequest("POST", folder.config.appUrl, bytes.NewBuffer(v))
-		appRequest.Header.Set("Content-Type", "application/json")
+			v, _ := json.Marshal(response)
 
-		client := &http.Client{}
-		_, err := client.Do(appRequest)
-		if err != nil {
-			return
-		}
-	}()
+			appRequest, _ := http.NewRequest("POST", folder.config.appUrl, bytes.NewBuffer(v))
+			appRequest.Header.Set("Content-Type", "application/json")
+
+			client := &http.Client{}
+			_, err := client.Do(appRequest)
+			return err
+		},
+	})
 
 	var requestAcceptedResponse GetFolderSizeRequestedResponse
 	requestAcceptedResponse.Status = true
@@ -91,8 +95,14 @@ func (folder *Folder) getSize(w http.ResponseWriter, req *http.Request) {
 }
 
 func (folder *Folder) serve(addr string) {
-	http.HandleFunc("/get", folder.getSize)
+	folder.worker = &Worker{NewQueue("file-storages")}
 
+	go func() {
+		folder.worker.DoWork()
+	}()
+
+	http.HandleFunc("/get", folder.getSize)
+	log.Printf("Listening on %s", addr)
 	err := http.ListenAndServe(addr, nil)
 
 	if err != nil {
