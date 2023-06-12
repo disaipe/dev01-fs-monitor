@@ -2,10 +2,6 @@ name: build
 
 # on events
 on:
-  push:
-    branches:
-    - ci
-  workflow_dispatch:
   release:
     types:
       - created
