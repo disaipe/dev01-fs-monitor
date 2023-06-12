@@ -39,6 +39,7 @@ func (folder *Folder) getSize(w http.ResponseWriter, req *http.Request) {
 	var body GetFolderSizeRequest
 
 	secret := req.Header.Get("X-SECRET")
+	appAuth := req.Header.Get("X-APP-AUTH")
 
 	if secret != folder.config.appSecret {
 		http.Error(w, "Wrong secret", http.StatusUnauthorized)
@@ -77,6 +78,7 @@ func (folder *Folder) getSize(w http.ResponseWriter, req *http.Request) {
 
 			appRequest, _ := http.NewRequest("POST", folder.config.appUrl, bytes.NewBuffer(v))
 			appRequest.Header.Set("Content-Type", "application/json")
+			appRequest.Header.Set("X-APP-AUTH", appAuth)
 
 			client := &http.Client{}
 			_, err := client.Do(appRequest)
