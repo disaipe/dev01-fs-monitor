@@ -14,12 +14,12 @@ type Daemon struct {
 }
 
 func (p Daemon) Start(s service.Service) error {
-	folder := &Folder{
+	storage := &FileStorage{
 		config: p.config,
 	}
 
 	go func() {
-		folder.serve(p.config.addr)
+		storage.serve(p.config.addr)
 	}()
 
 	return nil

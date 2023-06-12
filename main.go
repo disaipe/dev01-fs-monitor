@@ -62,7 +62,7 @@ func main() {
 			log.Fatal("application hook URL is required")
 		}
 
-		folder := &Folder{
+		folder := &FileStorage{
 			config: config,
 		}
 		folder.serve(*addr)
