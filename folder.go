@@ -21,8 +21,9 @@ type Folder struct {
 }
 
 type GetFolderSizeRequest struct {
-	Id   int
-	Path string
+	Id    int
+	Path  string
+	Paths []GetFolderSizeRequest
 }
 
 type GetFolderSizeResponseRequest struct {
@@ -33,36 +34,15 @@ type GetFolderSizeResponseRequest struct {
 
 type GetFolderSizeRequestedResponse struct {
 	Status bool
+	Data   string
 }
 
-func (folder *Folder) getSize(w http.ResponseWriter, req *http.Request) {
-	var body GetFolderSizeRequest
-
-	secret := req.Header.Get("X-SECRET")
-	appAuth := req.Header.Get("X-APP-AUTH")
-
-	if secret != folder.config.appSecret {
-		http.Error(w, "Wrong secret", http.StatusUnauthorized)
-		return
-	}
-
-	err := json.NewDecoder(req.Body).Decode(&body)
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if body.Id == 0 {
-		http.Error(w, "Id is required", http.StatusBadRequest)
-		return
-	}
-
-	folder.worker.Queue.AddJob(Job{
-		Name: body.Path,
+func GetFolderSizeQueueJob(req GetFolderSizeRequest, appAuth string, folder *Folder) Job {
+	return Job{
+		Name: req.Path,
 		Action: func() error {
-			id := body.Id
-			path := body.Path
+			id := req.Id
+			path := req.Path
 			timeStart := time.Now()
 			size := getFolderSize.LooseParallel(path)
 			duration := time.Now().Sub(timeStart).Seconds()
@@ -84,22 +64,59 @@ func (folder *Folder) getSize(w http.ResponseWriter, req *http.Request) {
 			_, err := client.Do(appRequest)
 			return err
 		},
-	})
+	}
+}
+
+func (folder *Folder) getSize(w http.ResponseWriter, req *http.Request) {
+	var body GetFolderSizeRequest
+
+	secret := req.Header.Get("X-SECRET")
+	appAuth := req.Header.Get("X-APP-AUTH")
+
+	if secret != folder.config.appSecret {
+		http.Error(w, "Wrong secret", http.StatusUnauthorized)
+		return
+	}
+
+	err := json.NewDecoder(req.Body).Decode(&body)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var resultMessage string
+
+	if body.Paths != nil {
+		for _, path := range body.Paths {
+			if path.Id != 0 && path.Path != "" {
+				folder.worker.Queue.AddJob(GetFolderSizeQueueJob(path, appAuth, folder))
+			}
+		}
+	} else {
+		if body.Id == 0 {
+			resultMessage = "Id is required"
+		} else if body.Path == "" {
+			resultMessage = "Path is required"
+		} else {
+			folder.worker.Queue.AddJob(GetFolderSizeQueueJob(body, appAuth, folder))
+		}
+	}
 
 	var requestAcceptedResponse GetFolderSizeRequestedResponse
 	requestAcceptedResponse.Status = true
+	requestAcceptedResponse.Data = resultMessage
 	w.Header().Set("Content-Type", "application/json")
 
 	err = json.NewEncoder(w).Encode(requestAcceptedResponse)
 	if err != nil {
-		return
+		log.Printf("Failed to send request: %v", err)
 	}
 }
 
 func (folder *Folder) serve(addr string) {
-	folder.worker = &Worker{NewQueue("file-storages")}
-
 	go func() {
+		folder.worker = &Worker{NewQueue("file-storages")}
 		folder.worker.DoWork()
 	}()
 
