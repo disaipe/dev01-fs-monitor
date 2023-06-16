@@ -16,23 +16,8 @@ type FileStorage struct {
 }
 
 func (storage *FileStorage) getSize() {
-	defer func() {
-		e := recover()
-
-		if e != nil {
-			// log.Fatalf("%v", e)
-			log.Fatal("ERROR")
-		}
-	}()
-
 	timeStart := time.Now()
-	storage.path = "\\\\fserver.gw-ad.local\\Правовой департамент"
 	size := getFolderSize.LooseParallel(storage.path)
-	// size, err := getFolderSize.Parallel(storage.path)
-
-	//if err != nil {
-	//	log.Println(err.Error())
-	//}
 
 	duration := time.Now().Sub(timeStart).Seconds()
 
