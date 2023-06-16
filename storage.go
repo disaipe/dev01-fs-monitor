@@ -1,130 +1,69 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
+	"fmt"
 	getFolderSize "github.com/markthree/go-get-folder-size/src"
 	"log"
-	"net/http"
+	"os"
+	"os/exec"
 	"time"
 )
 
-type Config struct {
-	addr      string
-	appUrl    string
-	appSecret string
-}
-
 type FileStorage struct {
-	config *Config
-	worker *Worker
+	id      int
+	path    string
+	appAuth string
 }
 
-type GetStorageSizeRequest struct {
-	Id    int
-	Path  string
-	Paths []GetStorageSizeRequest
-}
+func (storage *FileStorage) getSize() {
+	defer func() {
+		e := recover()
 
-type GetStorageSizeResponseRequest struct {
-	Id       int
-	Size     int64
-	Duration float64
-}
-
-type GetStorageSizeRequestedResponse struct {
-	Status bool
-	Data   string
-}
-
-func GetStorageSizeQueueJob(req GetStorageSizeRequest, appAuth string, storage *FileStorage) Job {
-	return Job{
-		Name: req.Path,
-		Action: func() error {
-			id := req.Id
-			path := req.Path
-			timeStart := time.Now()
-			size := getFolderSize.LooseParallel(path)
-			duration := time.Now().Sub(timeStart).Seconds()
-
-			log.Printf("Result: %v (id: %v) - %v (%.2f)", path, id, size, duration)
-
-			var response GetStorageSizeResponseRequest
-			response.Id = id
-			response.Size = size
-			response.Duration = duration
-
-			v, _ := json.Marshal(response)
-
-			appRequest, _ := http.NewRequest("POST", storage.config.appUrl, bytes.NewBuffer(v))
-			appRequest.Header.Set("Content-Type", "application/json")
-			appRequest.Header.Set("X-APP-AUTH", appAuth)
-
-			client := &http.Client{}
-			_, err := client.Do(appRequest)
-			return err
-		},
-	}
-}
-
-func (storage *FileStorage) getSize(w http.ResponseWriter, req *http.Request) {
-	var body GetStorageSizeRequest
-
-	secret := req.Header.Get("X-SECRET")
-	appAuth := req.Header.Get("X-APP-AUTH")
-
-	if secret != storage.config.appSecret {
-		http.Error(w, "Wrong secret", http.StatusUnauthorized)
-		return
-	}
-
-	err := json.NewDecoder(req.Body).Decode(&body)
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	var resultMessage string
-
-	if body.Paths != nil {
-		for _, path := range body.Paths {
-			if path.Id != 0 && path.Path != "" {
-				storage.worker.Queue.AddJob(GetStorageSizeQueueJob(path, appAuth, storage))
-			}
+		if e != nil {
+			// log.Fatalf("%v", e)
+			log.Fatal("ERROR")
 		}
-	} else {
-		if body.Id == 0 {
-			resultMessage = "Id is required"
-		} else if body.Path == "" {
-			resultMessage = "Path is required"
-		} else {
-			storage.worker.Queue.AddJob(GetStorageSizeQueueJob(body, appAuth, storage))
-		}
-	}
-
-	var requestAcceptedResponse GetStorageSizeRequestedResponse
-	requestAcceptedResponse.Status = true
-	requestAcceptedResponse.Data = resultMessage
-	w.Header().Set("Content-Type", "application/json")
-
-	err = json.NewEncoder(w).Encode(requestAcceptedResponse)
-	if err != nil {
-		log.Printf("Failed to send request: %v", err)
-	}
-}
-
-func (storage *FileStorage) serve(addr string) {
-	go func() {
-		storage.worker = &Worker{NewQueue("file-storages")}
-		storage.worker.DoWork()
 	}()
 
-	http.HandleFunc("/get", storage.getSize)
-	log.Printf("Listening on %s", addr)
-	err := http.ListenAndServe(addr, nil)
+	timeStart := time.Now()
+	storage.path = "\\\\fserver.gw-ad.local\\Правовой департамент"
+	size := getFolderSize.LooseParallel(storage.path)
+	// size, err := getFolderSize.Parallel(storage.path)
+
+	//if err != nil {
+	//	log.Println(err.Error())
+	//}
+
+	duration := time.Now().Sub(timeStart).Seconds()
+
+	log.Printf("Result: %v (id: %v) - %v (%.2f)", storage.path, storage.id, size, duration)
+
+	if AppConfig.appUrl != "" {
+		rpc := Rpc{}
+		err := rpc.sendResult(storage.id, size, duration, storage.appAuth)
+
+		if err != nil {
+			log.Printf("Failed to send results: %v", err)
+		} else {
+			log.Printf("Results sent to %s", AppConfig.appUrl)
+		}
+	}
+}
+
+func (storage *FileStorage) getSizeProcess() {
+	ex, _ := os.Executable()
+
+	idArg := fmt.Sprintf("-id=%v", storage.id)
+	pathArg := fmt.Sprintf("-path=%s", storage.path)
+	authArg := fmt.Sprintf("-auth=%s", storage.appAuth)
+	appUrl := fmt.Sprintf("-app.url=%s", AppConfig.appUrl)
+
+	cmd := exec.Command(ex, idArg, pathArg, authArg, appUrl)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
 
 	if err != nil {
-		log.Fatalf("Cannot start http server: %v", err)
+		return
 	}
 }

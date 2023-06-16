@@ -9,17 +9,13 @@ import (
 	"strings"
 )
 
-type Daemon struct {
-	config *Config
-}
+type Daemon struct{}
 
 func (p Daemon) Start(s service.Service) error {
-	storage := &FileStorage{
-		config: p.config,
-	}
+	rpc := &Rpc{}
 
 	go func() {
-		storage.serve(p.config.addr)
+		rpc.serve(AppConfig.addr)
 	}()
 
 	return nil
@@ -29,7 +25,7 @@ func (p Daemon) Stop(s service.Service) error {
 	return nil
 }
 
-func runService(config *Config) {
+func runService() {
 	if isFlagPassed("srv.install") {
 		reader := bufio.NewReader(os.Stdin)
 
@@ -41,7 +37,7 @@ func runService(config *Config) {
 		appSecret, _ := reader.ReadString('\n')
 		appSecret = strings.Replace(appSecret, "\n", "", -1)
 
-		srv := getService(config, []string{
+		srv := getService([]string{
 			"-srv",
 			fmt.Sprintf("-app.url=%v", appUrl),
 			fmt.Sprintf("-app.secret=%v", appSecret),
@@ -58,7 +54,7 @@ func runService(config *Config) {
 	}
 
 	if isFlagPassed("srv.uninstall") {
-		srv := getService(config, []string{})
+		srv := getService([]string{})
 		err := srv.Uninstall()
 
 		if err != nil {
@@ -69,7 +65,7 @@ func runService(config *Config) {
 		os.Exit(0)
 	}
 
-	srv := getService(config, []string{})
+	srv := getService([]string{})
 	err := srv.Run()
 
 	if err != nil {
@@ -79,7 +75,7 @@ func runService(config *Config) {
 	os.Exit(0)
 }
 
-func getService(config *Config, args []string) service.Service {
+func getService(args []string) service.Service {
 	serviceConfig := &service.Config{
 		Name:        "dev01-fs-daemon",
 		DisplayName: "Dev01 file storages monitor daemon",
@@ -87,9 +83,7 @@ func getService(config *Config, args []string) service.Service {
 		Arguments:   args,
 	}
 
-	prg := &Daemon{
-		config: config,
-	}
+	prg := &Daemon{}
 
 	srv, err := service.New(prg, serviceConfig)
 
