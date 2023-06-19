@@ -72,38 +72,45 @@ func (rpc *Rpc) getSizeRequest(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	var resultStatus = true
 	var resultMessage string
 
 	if body.Paths != nil {
-		for _, path := range body.Paths {
-			if path.Id != 0 && path.Path != "" {
+		go func() {
+			for _, path := range body.Paths {
+				if path.Id != 0 && path.Path != "" {
+					storage := &FileStorage{
+						id:      path.Id,
+						path:    path.Path,
+						appAuth: appAuth,
+					}
+
+					rpc.worker.Queue.AddJob(GetStorageSizeQueueJob(storage))
+				}
+			}
+		}()
+	} else {
+		if body.Id == 0 {
+			resultMessage = "Id is required"
+			resultStatus = false
+		} else if body.Path == "" {
+			resultMessage = "Path is required"
+			resultStatus = false
+		} else {
+			go func() {
 				storage := &FileStorage{
-					id:      path.Id,
-					path:    path.Path,
+					id:      body.Id,
+					path:    body.Path,
 					appAuth: appAuth,
 				}
 
 				rpc.worker.Queue.AddJob(GetStorageSizeQueueJob(storage))
-			}
-		}
-	} else {
-		if body.Id == 0 {
-			resultMessage = "Id is required"
-		} else if body.Path == "" {
-			resultMessage = "Path is required"
-		} else {
-			storage := &FileStorage{
-				id:      body.Id,
-				path:    body.Path,
-				appAuth: appAuth,
-			}
-
-			rpc.worker.Queue.AddJob(GetStorageSizeQueueJob(storage))
+			}()
 		}
 	}
 
 	var requestAcceptedResponse GetStorageSizeRequestedResponse
-	requestAcceptedResponse.Status = true
+	requestAcceptedResponse.Status = resultStatus
 	requestAcceptedResponse.Data = resultMessage
 	w.Header().Set("Content-Type", "application/json")
 
