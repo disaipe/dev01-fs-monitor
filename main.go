@@ -1,97 +1,121 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
-	"log"
-	"os"
+	rpc "github.com/disaipe/dev01-rpc-base"
+	"io"
 	"runtime/debug"
-	"strings"
 )
 
-type Config struct {
-	addr      string
-	appUrl    string
-	appSecret string
+type GetStorageSizeRequest struct {
+	rpc.Response
+
+	Id    int
+	Path  string
+	Paths []GetStorageSizeRequest
 }
 
-func isFlagPassed(name string) bool {
-	found := false
-	flag.Visit(func(f *flag.Flag) {
-		if f.Name == name {
-			found = true
-		}
-	})
-	return found
+type GetStorageSizeResponse struct {
+	rpc.ResultResponse
+
+	Id       int
+	Size     int64
+	Duration float64
 }
 
-func isService() bool {
-	found := false
-	flag.Visit(func(f *flag.Flag) {
-		if f.Name == "srv" || strings.HasPrefix(f.Name, "srv.") {
-			found = true
-		}
-	})
-	return found
+func GetStorageSizeQueueJob(storage *FileStorage) rpc.Job {
+	return rpc.Job{
+		Name: storage.path,
+		Action: func() error {
+			return storage.getSizeProcess()
+		},
+	}
 }
 
-var AppConfig *Config
+var storageId int
+var storagePath string
+var storageAuth string
+
+func init() {
+	flag.IntVar(&storageId, "id", 0, "Storage id")
+	flag.StringVar(&storagePath, "path", "", "Path to get size")
+	flag.StringVar(&storageAuth, "auth", "", "Storage result request auth key")
+}
 
 func main() {
-	var serviceFlag = false
-	var installFlag = false
-	var uninstallFlag = false
-	var helpFlag = false
-	var serve = false
-	flag.BoolVar(&serve, "serve", false, "Start HTTP server")
-	flag.BoolVar(&serviceFlag, "srv", false, "Start as Windows service")
-	flag.BoolVar(&installFlag, "srv.install", false, "Install Windows service")
-	flag.BoolVar(&uninstallFlag, "srv.uninstall", false, "Uninstall Windows service")
-	flag.BoolVar(&helpFlag, "help", false, "Usage help")
-
-	addr := flag.String("http.addr", ":8090", "Listening network address")
-	appUrl := flag.String("app.url", "", "Application hook URL")
-	secret := flag.String("app.secret", "", "Application secret")
-
-	storageId := flag.Int("id", 0, "Storage id")
-	storagePath := flag.String("path", "", "Path to get size")
-	storageAuth := flag.String("auth", "", "Storage result request auth key")
-
 	flag.Parse()
 
-	if isFlagPassed("help") {
-		flag.PrintDefaults()
-		os.Exit(0)
-	}
-
-	AppConfig = &Config{
-		addr:      *addr,
-		appUrl:    *appUrl,
-		appSecret: *secret,
-	}
-
-	if isService() {
-		if *appUrl == "" {
-			flag.PrintDefaults()
-			log.Fatal("application hook URL is required")
-		}
-
-		runService()
-	} else if serve {
-		if *appUrl == "" {
-			flag.PrintDefaults()
-			log.Fatal("application hook URL is required")
-		}
-
-		rpc := &Rpc{}
-		rpc.serve(*addr)
-	} else if *storagePath != "" {
+	if rpc.AppConfig.Serving() {
+		serve()
+	} else if storagePath != "" {
 		debug.SetMaxThreads(1000000)
 
 		storage := FileStorage{
-			id:      *storageId,
-			path:    *storagePath,
-			appAuth: *storageAuth,
+			id:      storageId,
+			path:    storagePath,
+			appAuth: storageAuth,
 		}
 		storage.getSize()
 	}
+}
+
+func serve() {
+	rpcServer := &rpc.Rpc{
+		Action: func(rpcServer *rpc.Rpc, body io.ReadCloser, appAuth string) (rpc.Response, error) {
+			var storageRequest GetStorageSizeRequest
+
+			err := json.NewDecoder(body).Decode(&storageRequest)
+
+			if err != nil {
+				return nil, err
+			}
+
+			var resultStatus = true
+			var resultMessage string
+
+			if storageRequest.Paths != nil {
+				go func() {
+					for _, path := range storageRequest.Paths {
+						if path.Id != 0 && path.Path != "" {
+							storage := &FileStorage{
+								id:      path.Id,
+								path:    path.Path,
+								appAuth: appAuth,
+							}
+
+							rpcServer.AddJob(GetStorageSizeQueueJob(storage))
+						}
+					}
+				}()
+			} else {
+				if storageRequest.Id == 0 {
+					resultMessage = "Id is required"
+					resultStatus = false
+				} else if storageRequest.Path == "" {
+					resultMessage = "Path is required"
+					resultStatus = false
+				} else {
+					go func() {
+						storage := &FileStorage{
+							id:      storageRequest.Id,
+							path:    storageRequest.Path,
+							appAuth: appAuth,
+						}
+
+						rpcServer.AddJob(GetStorageSizeQueueJob(storage))
+					}()
+				}
+			}
+
+			requestAcceptedResponse := &rpc.ActionResponse{
+				Status: resultStatus,
+				Data:   resultMessage,
+			}
+
+			return requestAcceptedResponse, nil
+		},
+	}
+
+	rpcServer.Run()
 }
