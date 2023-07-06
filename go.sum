@@ -5,6 +5,12 @@ github.com/disaipe/dev01-rpc-base v0.0.0-20230706155532-f30ee7fed042 h1:pVWDs98J
 github.com/disaipe/dev01-rpc-base v0.0.0-20230706155532-f30ee7fed042/go.mod h1:0zTjD1NANUPsL9XPm6LtOrbwcu52jUx93VdbReWe4Yo=
 github.com/disaipe/dev01-rpc-base v1.0.0 h1:PaXzPgdN+bYuiyZKEeO5smzy6SgubvOipes9KJq7ORQ=
 github.com/disaipe/dev01-rpc-base v1.0.0/go.mod h1:0zTjD1NANUPsL9XPm6LtOrbwcu52jUx93VdbReWe4Yo=
+github.com/disaipe/dev01-rpc-base v1.0.1 h1:paRssqs4uqd4yLUd2Da+n2bT/P/BsMEmGMT5ct4QFDU=
+github.com/disaipe/dev01-rpc-base v1.0.1/go.mod h1:0zTjD1NANUPsL9XPm6LtOrbwcu52jUx93VdbReWe4Yo=
+github.com/disaipe/dev01-rpc-base v1.0.2 h1:20zqlMf2nol54JkbPGtqJLT4dKmePw7MyjGykWbKphA=
+github.com/disaipe/dev01-rpc-base v1.0.2/go.mod h1:0zTjD1NANUPsL9XPm6LtOrbwcu52jUx93VdbReWe4Yo=
+github.com/disaipe/dev01-rpc-base v1.0.3-0.20230706180544-6a45e39a54c7 h1:6nTDy9J7wVPRZiVdlLqdS8iRLgv0HnKCnJ6EY119+0g=
+github.com/disaipe/dev01-rpc-base v1.0.3-0.20230706180544-6a45e39a54c7/go.mod h1:0zTjD1NANUPsL9XPm6LtOrbwcu52jUx93VdbReWe4Yo=
 github.com/kardianos/service v1.2.2 h1:ZvePhAHfvo0A7Mftk/tEzqEZ7Q4lgnR8sGz4xu1YX60=
 github.com/kardianos/service v1.2.2/go.mod h1:CIMRFEJVL+0DS1a3Nx06NaMn4Dz63Ng6O7dl0qH0zVM=
 github.com/markthree/go-get-folder-size v0.3.2 h1:dvkbdcmyLYToWReSO7HX25dN1D7GLrXJY+zix0KnREc=

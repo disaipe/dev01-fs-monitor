@@ -25,7 +25,7 @@ func (storage *FileStorage) getSize() {
 
 	log.Printf("Result: %v (id: %v) - %v (%.2f)", storage.path, storage.id, size, duration)
 
-	if rpc.AppConfig.GetAppUrl() != "" {
+	if rpc.Config.GetAppUrl() != "" {
 		rpcInstance := rpc.Rpc{}
 		response := &GetStorageSizeResponse{
 			Id:       storage.id,
@@ -44,7 +44,7 @@ func (storage *FileStorage) getSizeProcess() error {
 	idArg := fmt.Sprintf("-id=%v", storage.id)
 	pathArg := fmt.Sprintf("-path=%s", storage.path)
 	authArg := fmt.Sprintf("-auth=%s", storage.appAuth)
-	appUrl := fmt.Sprintf("-app.url=%s", rpc.AppConfig.GetAppUrl())
+	appUrl := fmt.Sprintf("-app.url=%s", rpc.Config.GetAppUrl())
 
 	cmd := exec.Command(ex, idArg, pathArg, authArg, appUrl)
 	cmd.Stdout = os.Stdout
