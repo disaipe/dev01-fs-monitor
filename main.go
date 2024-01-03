@@ -3,9 +3,10 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	rpc "github.com/disaipe/dev01-rpc-base"
 	"io"
 	"runtime/debug"
+
+	rpc "github.com/disaipe/dev01-rpc-base"
 )
 
 type GetStorageSizeRequest struct {
